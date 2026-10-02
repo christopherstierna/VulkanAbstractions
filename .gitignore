@@ -1,0 +1,9 @@
+.idea/
+.vs/
+
+Build/
+build/
+Out/
+out/
+
+vcpkg_installed/
