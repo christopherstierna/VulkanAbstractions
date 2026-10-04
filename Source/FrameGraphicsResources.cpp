@@ -50,7 +50,7 @@ void FrameGraphicsResources::CreateSynchronizationResources() {
   }
 }
 
-void FrameGraphicsResources::CreateColorImages(const vk::Extent2D& extent) {
+void FrameGraphicsResources::CreateColorImages(const vk::Extent2D& extent, const vk::ImageUsageFlags usage) {
   colorImageViews.clear();
   colorImages.clear();
 
@@ -66,7 +66,7 @@ void FrameGraphicsResources::CreateColorImages(const vk::Extent2D& extent) {
         .mipLevels = 1,
         .arrayLayers = 1,
         .sampleCount = vk::SampleCountFlagBits::e1,
-        .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
+        .usage = usage,
         .tiling = vk::ImageTiling::eOptimal,
         .initialLayout = vk::ImageLayout::eUndefined,
         .memoryAccessMode = VulkanMemoryAccessMode::DeviceLocal
@@ -92,7 +92,7 @@ void FrameGraphicsResources::CreateColorImages(const vk::Extent2D& extent) {
   }
 }
 
-void FrameGraphicsResources::CreateDepthImages(const vk::Extent2D& extent) {
+void FrameGraphicsResources::CreateDepthImages(const vk::Extent2D& extent, const vk::ImageUsageFlags usage) {
   depthImageViews.clear();
   depthImages.clear();
 
@@ -108,7 +108,7 @@ void FrameGraphicsResources::CreateDepthImages(const vk::Extent2D& extent) {
         .mipLevels = 1,
         .arrayLayers = 1,
         .sampleCount = vk::SampleCountFlagBits::e1,
-        .usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferDst,
+        .usage = usage,
         .tiling = vk::ImageTiling::eOptimal,
         .initialLayout = vk::ImageLayout::eUndefined,
         .memoryAccessMode = VulkanMemoryAccessMode::DeviceLocal
@@ -140,11 +140,11 @@ void FrameGraphicsResources::Recreate(const FrameGraphicsResourcesRecreationInfo
   maxFramesInFlight = recreationInfo.maxFramesInFlight;
 
   if (recreationInfo.createColorImages) {
-    CreateColorImages(recreationInfo.colorImageResolution);
+    CreateColorImages(recreationInfo.colorImageResolution, recreationInfo.colorImageUsageFlags);
   }
 
   if (recreationInfo.createDepthImages) {
-    CreateDepthImages(recreationInfo.depthImageResolution);
+    CreateDepthImages(recreationInfo.depthImageResolution, recreationInfo.depthImageUsageFlags);
   }
 }
 

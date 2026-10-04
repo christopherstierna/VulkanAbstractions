@@ -128,7 +128,7 @@ void Swapchain::CreateSwapchain(const SwapchainRecreationInfo& recreationInfo) {
     .imageColorSpace = surfaceFormat.colorSpace,
     .imageExtent = extent,
     .imageArrayLayers = 1,
-    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+    .imageUsage = recreationInfo.imageUsageFlags,
     .imageSharingMode = vk::SharingMode::eExclusive,
     .preTransform = surfaceCapabilities.currentTransform,
     .compositeAlpha = alphaComposite,

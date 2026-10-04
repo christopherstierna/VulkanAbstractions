@@ -12,6 +12,7 @@ struct SwapchainRecreationInfo {
   std::uint32_t preferredMaxFramesInFlight{ 2 };
   vk::PresentModeKHR preferredPresentMode{ vk::PresentModeKHR::eMailbox };
   vk::CompositeAlphaFlagBitsKHR preferredAlphaComposite{ vk::CompositeAlphaFlagBitsKHR::eOpaque };
+  vk::ImageUsageFlags imageUsageFlags{ vk::ImageUsageFlagBits::eColorAttachment };
 };
 
 class Swapchain {

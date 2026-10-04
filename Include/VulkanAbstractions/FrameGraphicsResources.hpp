@@ -14,10 +14,22 @@ class VulkanMemoryAllocator;
 
 struct FrameGraphicsResourcesRecreationInfo {
   std::uint32_t maxFramesInFlight{ Swapchain::MaxFramesInFlightLimit };
+
   bool createColorImages{ false };
   vk::Extent2D colorImageResolution{ .width = 1, .height = 1 };
+  vk::ImageUsageFlags colorImageUsageFlags{
+    vk::ImageUsageFlagBits::eSampled |
+    vk::ImageUsageFlagBits::eColorAttachment |
+    vk::ImageUsageFlagBits::eTransferSrc |
+    vk::ImageUsageFlagBits::eTransferDst
+  };
+
   bool createDepthImages{ false };
   vk::Extent2D depthImageResolution{ .width = 1, .height = 1 };
+  vk::ImageUsageFlags depthImageUsageFlags{
+    vk::ImageUsageFlagBits::eDepthStencilAttachment |
+    vk::ImageUsageFlagBits::eTransferDst
+  };
 };
 
 class FrameGraphicsResources {
@@ -43,8 +55,8 @@ private:
 
   void CreateCommandBuffers();
   void CreateSynchronizationResources();
-  void CreateColorImages(const vk::Extent2D& extent);
-  void CreateDepthImages(const vk::Extent2D& extent);
+  void CreateColorImages(const vk::Extent2D& extent, vk::ImageUsageFlags usage);
+  void CreateDepthImages(const vk::Extent2D& extent, vk::ImageUsageFlags usage);
 
 public:
 
