@@ -13,6 +13,7 @@ public:
   VulkanImage(
     vk::Image image,
     void* mappedData,
+    vk::Extent3D extent,
     VmaAllocator allocator,
     VmaAllocation allocation
   );
@@ -32,6 +33,7 @@ public:
 
   vk::Image image{ nullptr };
   void* mappedData{ nullptr };
+  vk::Extent3D extent{ .width = 0, .height = 0, .depth = 0 };
 
 private:
 

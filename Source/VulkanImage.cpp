@@ -6,12 +6,14 @@
 VulkanImage::VulkanImage(
   vk::Image image,
   void* mappedData,
+  const vk::Extent3D extent,
   VmaAllocator allocator,
   VmaAllocation allocation
 )
   :
   image{ image },
   mappedData{ mappedData },
+  extent{ extent },
   allocator{ allocator },
   allocation{ allocation }
 {}
@@ -26,11 +28,13 @@ VulkanImage::VulkanImage(VulkanImage&& otherImage) noexcept
   :
   image{ otherImage.image },
   mappedData{ otherImage.mappedData },
+  extent{ otherImage.extent },
   allocator{ otherImage.allocator },
   allocation{ otherImage.allocation }
 {
   otherImage.image = nullptr;
   otherImage.mappedData = nullptr;
+  otherImage.extent = vk::Extent3D{ .width = 0, .height = 0, .depth = 0 };
   otherImage.allocator = nullptr;
   otherImage.allocation = nullptr;
 }
@@ -42,11 +46,13 @@ VulkanImage& VulkanImage::operator=(VulkanImage&& otherImage) noexcept {
 
   image = otherImage.image;
   mappedData = otherImage.mappedData;
+  extent = otherImage.extent;
   allocator = otherImage.allocator;
   allocation = otherImage.allocation;
 
   otherImage.image = nullptr;
   otherImage.mappedData = nullptr;
+  otherImage.extent = vk::Extent3D{ .width = 0, .height = 0, .depth = 0 };
   otherImage.allocator = nullptr;
   otherImage.allocation = nullptr;
 
@@ -60,6 +66,7 @@ VulkanImage& VulkanImage::operator=(std::nullptr_t) noexcept {
 
   image = nullptr;
   mappedData = nullptr;
+  extent = vk::Extent3D{ .width = 0, .height = 0, .depth = 0 };
   allocator = nullptr;
   allocation = nullptr;
 

@@ -136,6 +136,7 @@ VulkanImage VulkanMemoryAllocator::AllocateImage(const ImageAllocationInfo& imag
   return VulkanImage{
     image,
     imageAllocationInfo.memoryAccessMode == VulkanMemoryAccessMode::DeviceLocal ? nullptr : allocationInfo.pMappedData,
+    imageAllocationInfo.extent,
     allocator,
     allocation,
   };
