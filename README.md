@@ -15,7 +15,7 @@ This library exists to avoid repeatedly implementing the same Vulkan setup and b
 
 VulkanAbstractions is built as a **static library**.
 
-After building the library, link it into your application and make the library's include directory available to the compiler.
+After building the library, link it into your application. The library headers should be made available to any CMake targets linking to it, otherwise add the [include directory](Include) to your project.
 
 Headers can then be included using:
 
@@ -38,9 +38,9 @@ The exact abstractions and APIs are subject to change as the library evolves alo
 
 VulkanAbstractions relies on:
 
-* **Vulkan** — graphics API
-* **Vulkan Memory Allocator** — GPU memory allocation
-* **SDL3** — windowing and platform integration
+* **Vulkan** - graphics API
+* **Vulkan Memory Allocator** - GPU memory allocation
+* **SDL3** - windowing and platform integration
 
 These dependencies are not intended to be reimplemented by this library; VulkanAbstractions primarily provides a reusable layer around them.
 
