@@ -13,7 +13,7 @@ class Swapchain;
 class VulkanMemoryAllocator;
 
 struct FrameGraphicsResourcesRecreationInfo {
-  std::uint32_t maxFramesInFlight{ Swapchain::MaxFramesInFlightLimit };
+  std::uint32_t maxFramesInFlight;
 
   bool createColorImages{ false };
   vk::Extent2D colorImageResolution{ .width = 1, .height = 1 };

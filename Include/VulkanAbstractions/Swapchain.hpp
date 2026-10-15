@@ -44,7 +44,7 @@ private:
 public:
 
   vk::raii::SurfaceKHR surface{ nullptr };
-  vk::SurfaceFormatKHR surfaceFormat{};
+  vk::SurfaceFormatKHR surfaceFormat{ .format = vk::Format::eUndefined };
   vk::PresentModeKHR presentMode{};
   vk::Extent2D extent{};
   std::uint32_t imageCount{};
@@ -55,7 +55,7 @@ public:
   std::vector<vk::raii::ImageView> imageViews;
   vk::CompositeAlphaFlagBitsKHR alphaComposite;
 
-  bool isDirty{ true  };
+  bool isDirty{ true };
 
   void Recreate(const SwapchainRecreationInfo& recreationInfo = {});
 

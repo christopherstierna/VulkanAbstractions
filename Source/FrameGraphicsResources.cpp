@@ -139,6 +139,14 @@ void FrameGraphicsResources::Recreate(const FrameGraphicsResourcesRecreationInfo
   frameIndex = 0;
   maxFramesInFlight = recreationInfo.maxFramesInFlight;
 
+  if (maxFramesInFlight < 1) {
+    throw std::logic_error{ "FrameGraphicsResources recreation failed because it needs to have at least 1 max frame in flight." };
+  }
+
+  if (maxFramesInFlight > Swapchain::MaxFramesInFlightLimit) {
+    throw std::logic_error{ "FrameGraphicsResources recreation failed because max frames in flight cannot be more than Swapchain::MaxFramesInFlightLimit." };
+  }
+
   if (recreationInfo.createColorImages) {
     CreateColorImages(recreationInfo.colorImageResolution, recreationInfo.colorImageUsageFlags);
   }
