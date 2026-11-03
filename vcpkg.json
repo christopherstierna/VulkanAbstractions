@@ -3,7 +3,8 @@
     {
       "name": "sdl3",
       "features": [
-        "vulkan"
+        "vulkan",
+        "wayland"
       ]
     },
     "vulkan-memory-allocator"

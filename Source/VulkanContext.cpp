@@ -130,7 +130,7 @@ void VulkanContext::CreateInstance(vk::ApplicationInfo applicationInfo) {
 
   const vk::InstanceCreateInfo instanceInfo{
     .pApplicationInfo = &applicationInfo,
-    .enabledLayerCount = ValidationLayersEnabled ? RequiredValidationLayers.size() : 0,
+    .enabledLayerCount = ValidationLayersEnabled ? static_cast<std::uint32_t>(RequiredValidationLayers.size()) : 0,
     .ppEnabledLayerNames = RequiredValidationLayers.data(),
     .enabledExtensionCount = static_cast<std::uint32_t>(requiredSdlExtensions.size()),
     .ppEnabledExtensionNames = rawSdlExtensions.data(),
@@ -304,25 +304,8 @@ VulkanContext::PhysicalDeviceCandidateResult VulkanContext::EvaluatePhysicalDevi
     }
   }
 
-  const auto features = candidate.getFeatures2<
-    vk::PhysicalDeviceFeatures2,
-    vk::PhysicalDeviceVulkan11Features,
-    vk::PhysicalDeviceVulkan13Features
-  >();
-
-  const auto& vk11 = features.get<vk::PhysicalDeviceVulkan11Features>();
-  const auto& vk13 = features.get<vk::PhysicalDeviceVulkan13Features>();
-
-  if (!vk11.shaderDrawParameters) {
-    result.InvalidateScore("Missing vk11.shaderDrawParameters");
-  }
-
-  if (!vk13.synchronization2) {
-    result.InvalidateScore("Missing vk13.synchronization2");
-  }
-
-  if (!vk13.dynamicRendering) {
-    result.InvalidateScore("Missing vk13.dynamicRendering");
+  if (!IsRequiredDeviceFeaturesSupported(candidate)) {
+    result.InvalidateScore("Required device features are unsupported");
   }
 
   return result;
@@ -357,7 +340,7 @@ void VulkanContext::CreateDeviceAndQueue() {
   };
 
   const vk::DeviceCreateInfo logicalDeviceInfo{
-    .pNext = &RequiredDeviceFeatures.get<vk::PhysicalDeviceFeatures2>(),
+    .pNext = &GetRequiredDeviceFeatures(),
     .queueCreateInfoCount = 1,
     .pQueueCreateInfos = &deviceQueueInfo,
     .enabledExtensionCount = static_cast<std::uint32_t>(RequiredDeviceExtensions.size()),

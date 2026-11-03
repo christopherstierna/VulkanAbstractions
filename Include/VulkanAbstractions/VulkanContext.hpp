@@ -4,6 +4,7 @@
 #include <string>
 
 #include <vulkan/vulkan_raii.hpp>
+#include "vulkan/vulkan.hpp"
 
 class VulkanContext {
 public:
@@ -19,35 +20,13 @@ public:
 
   static constexpr std::uint32_t ApiVersion{ vk::ApiVersion14 };
 
-#ifdef NDEBUG
-  static constexpr bool ValidationLayersEnabled = false;
-#else
-  static constexpr bool ValidationLayersEnabled = true;
-#endif
-
-  static constexpr std::array<const char*, 1> RequiredValidationLayers = {
-    "VK_LAYER_KHRONOS_validation"
-  };
-
-  static constexpr std::array RequiredDeviceExtensions{ vk::KHRSwapchainExtensionName };
-
-  // If modified, make sure to query support inside of VulkanContext::EvaluatePhysicalDevice()
-  inline static const vk::StructureChain RequiredDeviceFeatures{
-    vk::PhysicalDeviceFeatures2{},
-    vk::PhysicalDeviceVulkan11Features{
-      .shaderDrawParameters = true,
-    },
-    vk::PhysicalDeviceVulkan13Features{
-      .synchronization2 = true,
-      .dynamicRendering = true,
-    },
-  };
-
-#ifdef NDEBUG
-  static constexpr bool EnableInfoLogs{ false };
-#else
-  static constexpr bool EnableInfoLogs{ true };
-#endif
+  // These have to be defined by the user
+  static const bool ValidationLayersEnabled;
+  static const bool EnableInfoLogs;
+  static const std::vector<const char*> RequiredValidationLayers;
+  static const std::vector<const char*> RequiredDeviceExtensions;
+  vk::PhysicalDeviceFeatures2& GetRequiredDeviceFeatures() noexcept;
+  bool IsRequiredDeviceFeaturesSupported(const vk::PhysicalDevice& physicalDevice) const noexcept;
 
   vk::raii::Context context;
   vk::raii::Instance instance{ nullptr };

@@ -7,6 +7,7 @@ add_executable(
   Source/Main.cpp
   Source/Application.cpp
   Source/Application.hpp
+  Source/VulkanContextSettings.cpp
 )
 
 set_target_properties(
