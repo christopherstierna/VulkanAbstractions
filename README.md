@@ -15,7 +15,73 @@ This library exists to avoid repeatedly implementing the same Vulkan setup and b
 
 VulkanAbstractions is built as a **static library**.
 
-After building the library, link it into your application. The library headers should be made available to any CMake targets linking to it, otherwise add the [include directory](Include) to your project.
+Build and link to it using CMake:
+```cmake
+add_subdirectory(SomeDirectory/VulkanAbstractions)
+target_link_libraries(YourApplication PRIVATE VulkanAbstractions)
+```
+
+Your application also needs to define certain members and methods related to the VulkanContext, here is a minimal example.
+```cpp
+#include "VulkanAbstractions/VulkanContext.hpp"
+
+// Validation layers and info logs.
+#ifdef NDEBUG
+const bool VulkanContext::ValidationLayersEnabled = false;
+const bool VulkanContext::EnableInfoLogs = false;
+#else
+const bool VulkanContext::ValidationLayersEnabled = true;
+const bool VulkanContext::EnableInfoLogs = true;
+#endif
+
+// What validation layers and device extensions you want to use.
+const std::vector<const char*> VulkanContext::RequiredValidationLayers{ "VK_LAYER_KHRONOS_validation" };
+const std::vector<const char*> VulkanContext::RequiredDeviceExtensions{ vk::KHRSwapchainExtensionName };
+
+// Structure chain of the required device features.
+vk::StructureChain RequiredDeviceFeatures{
+  vk::PhysicalDeviceFeatures2{},
+  vk::PhysicalDeviceVulkan11Features{
+    .shaderDrawParameters = true,
+  },
+  vk::PhysicalDeviceVulkan13Features{
+    .synchronization2 = true,
+    .dynamicRendering = true,
+  },
+};
+
+// Definition of GetRequiredDeviceFeatures() which VulkanContext uses to get your required device features.
+vk::PhysicalDeviceFeatures2& VulkanContext::GetRequiredDeviceFeatures() noexcept {
+  return RequiredDeviceFeatures.get<vk::PhysicalDeviceFeatures2>();
+}
+
+// Definition of IsRequiredDeviceFeaturesSupported() which VulkanContext uses to check if your required device features are supported.
+// Ensure this checks support for all your enabled device features in the RequiredDeviceFeatures structure chain.
+bool VulkanContext::IsRequiredDeviceFeaturesSupported(const vk::PhysicalDevice& physicalDevice) const noexcept {
+  const auto features = physicalDevice.getFeatures2<
+    vk::PhysicalDeviceFeatures2,
+    vk::PhysicalDeviceVulkan11Features,
+    vk::PhysicalDeviceVulkan13Features
+  >();
+
+  const auto& vk11 = features.get<vk::PhysicalDeviceVulkan11Features>();
+  const auto& vk13 = features.get<vk::PhysicalDeviceVulkan13Features>();
+
+  if (!vk11.shaderDrawParameters) {
+    return false;
+  }
+
+  if (!vk13.synchronization2) {
+    return false;
+  }
+
+  if (!vk13.dynamicRendering) {
+    return false;
+  }
+
+  return true;
+}
+```
 
 Headers can then be included using:
 
