@@ -5,6 +5,7 @@
 #include <print>
 
 #include <SDL3/SDL_vulkan.h>
+#include "vulkan/vulkan.hpp"
 
 #include "VulkanContext.hpp"
 
@@ -45,23 +46,32 @@ std::vector<std::string> VulkanContext::GetRequiredSdlInstanceExtensions() const
 void VulkanContext::CreateInstance(vk::ApplicationInfo applicationInfo) {
   applicationInfo.apiVersion = ApiVersion;
 
-  const std::vector supportedExtensions = context.enumerateInstanceExtensionProperties();
-  const std::vector requiredSdlExtensions = GetRequiredSdlInstanceExtensions();
+  std::vector<std::string> requiredExtensions;
+
+  if (GraphicsCapabilitiesEnabled) {
+    for (const std::string_view extension : GetRequiredSdlInstanceExtensions()) {
+      requiredExtensions.emplace_back(extension);
+    }
+  }
+
+  for (const std::string_view extension : RequiredInstanceExtensions) {
+    requiredExtensions.emplace_back(extension);
+  }
 
   if (EnableInfoLogs) {
-    std::println("Required SDL Vulkan instance extensions:");
-    for (const std::string_view extension : requiredSdlExtensions) {
+    std::println("Required instance extensions:");
+    for (const std::string_view extension : requiredExtensions) {
       std::println("\t{}", extension);
     }
     std::println(""); // Padding
   }
 
-  const std::vector unsupportedSdlExtensions =
-    requiredSdlExtensions |
+  const std::vector unsupportedExtensions =
+    requiredExtensions |
     std::views::filter(
-      [&supportedExtensions](const std::string_view extension) -> bool {
+      [this](const std::string_view extension) -> bool {
         const bool supported = std::ranges::any_of(
-          supportedExtensions,
+          context.enumerateInstanceExtensionProperties(),
           [extension](const vk::ExtensionProperties& supportedExtension) -> bool {
             return extension == supportedExtension.extensionName;
           }
@@ -71,23 +81,24 @@ void VulkanContext::CreateInstance(vk::ApplicationInfo applicationInfo) {
     ) |
     std::ranges::to<std::vector>();
 
-  if (!unsupportedSdlExtensions.empty()) {
+  if (!unsupportedExtensions.empty()) {
     std::string missingExtensions;
-    for (const std::string_view extension : unsupportedSdlExtensions) {
+    for (const std::string_view extension : unsupportedExtensions) {
       missingExtensions += '\t';
       missingExtensions += extension;
       missingExtensions += '\n';
     }
+    throw std::runtime_error{ std::format("Unsupported instance extensions:\n{}", missingExtensions) };
+  }
 
-    throw std::runtime_error{ std::format("Unsupported SDL Vulkan instance extensions:\n{}", missingExtensions) };
+  if (EnableInfoLogs) {
+    std::println("Vulkan validation layers enabled: {}", ValidationLayersEnabled ? "true" : "false");
+    std::println(""); // Padding
   }
 
   if (ValidationLayersEnabled) {
     if (EnableInfoLogs) {
-      std::println("Vulkan validation layers enabled: {}", ValidationLayersEnabled ? "true" : "false");
-      std::println(""); // Padding
-
-      std::println("Enabled validationLayers:");
+      std::println("Enabled validation layers:");
       for (const std::string_view layer : RequiredValidationLayers) {
         std::println("\t{}", layer);
       }
@@ -122,18 +133,17 @@ void VulkanContext::CreateInstance(vk::ApplicationInfo applicationInfo) {
     }
   }
 
-  std::vector<const char*> rawSdlExtensions;
-  rawSdlExtensions.reserve(requiredSdlExtensions.size());
-  for (const std::string_view extension : requiredSdlExtensions) {
-    rawSdlExtensions.emplace_back(extension.data());
+  std::vector<const char*> rawExtensionStrings;
+  for (const std::string_view extension : requiredExtensions) {
+    rawExtensionStrings.emplace_back(extension.data());
   }
 
   const vk::InstanceCreateInfo instanceInfo{
     .pApplicationInfo = &applicationInfo,
     .enabledLayerCount = ValidationLayersEnabled ? static_cast<std::uint32_t>(RequiredValidationLayers.size()) : 0,
     .ppEnabledLayerNames = RequiredValidationLayers.data(),
-    .enabledExtensionCount = static_cast<std::uint32_t>(requiredSdlExtensions.size()),
-    .ppEnabledExtensionNames = rawSdlExtensions.data(),
+    .enabledExtensionCount = static_cast<std::uint32_t>(rawExtensionStrings.size()),
+    .ppEnabledExtensionNames = rawExtensionStrings.data(),
   };
 
   instance = vk::raii::Instance{ context, instanceInfo };
@@ -148,53 +158,28 @@ void VulkanContext::SelectPhysicalDevice() {
     std::println(""); // Padding
   }
 
-  std::vector<PhysicalDeviceCandidateResult> candidateResults;
+  std::vector<int> candidateScores;
   const std::vector candidates = instance.enumeratePhysicalDevices();
 
   for (const vk::raii::PhysicalDevice& candidate : candidates) {
-    candidateResults.emplace_back(EvaluatePhysicalDevice(candidate));
-
-    if (EnableInfoLogs) {
-      const auto& candidateResult = candidateResults.back();
-
-      std::println("Physical device candidate:");
-      std::println("\t{}", candidateResult.deviceName);
-      std::println("\tScore: {}", candidateResult.GetScore());
-
-      for (const std::string_view deviceInfo : candidateResult.deviceInfos) {
-        std::println("\t{}", deviceInfo);
-      }
-
-      std::println(""); // Padding
-
-      std::println("\tInadequacies");
-      if (candidateResult.GetInvalidationReasons().size() == 0) {
-        std::println("\tNone");
-      } else {
-        for (const std::string_view inadequacy : candidateResult.GetInvalidationReasons()) {
-          std::println("\t{}", inadequacy);
-        }
-      }
-
-      std::println(""); // Padding
-    }
+    candidateScores.emplace_back(EvaluatePhysicalDevice(candidate));
   }
 
   const auto it = std::ranges::max_element(
-    candidateResults,
+    candidateScores,
     [](const auto& a, const auto& b) -> bool {
-      return a.GetScore() < b.GetScore();
+      return a < b;
     }
   );
 
-  if (it == candidateResults.end()) {
+  if (it == candidateScores.end()) {
     throw std::runtime_error{ "Failed to find suitable physical device" };
   }
 
-  const std::size_t index = std::distance(candidateResults.begin(), it);
-  const auto result = candidateResults[index];
+  const std::size_t index = std::distance(candidateScores.begin(), it);
+  const auto highestScore = candidateScores[index];
 
-  if (result.GetScore() == 0) {
+  if (highestScore == 0) {
     throw std::runtime_error{ "Failed to find suitable physical device" };
   }
 
@@ -202,135 +187,122 @@ void VulkanContext::SelectPhysicalDevice() {
 
   if (EnableInfoLogs) {
     std::println("Selected physical device:");
-    std::println("\t{}", result.deviceName);
+    std::println("\t{}", physicalDevice.getProperties().deviceName.data());
     std::println(""); // Padding
   }
 }
 
-VulkanContext::PhysicalDeviceCandidateResult VulkanContext::EvaluatePhysicalDevice(const vk::PhysicalDevice candidate) const {
-  PhysicalDeviceCandidateResult result;
-  result.deviceName = candidate.getProperties().deviceName.data();
-  result.SetScore(0);
-
+int VulkanContext::EvaluatePhysicalDevice(const vk::PhysicalDevice candidate) const {
   const vk::PhysicalDeviceProperties properties = candidate.getProperties();
+  
+  if (EnableInfoLogs) {
+    const auto& limits = properties.limits;
 
-  result.deviceInfos.emplace_back(std::format("Driver version: {}", properties.driverVersion));
-  result.deviceInfos.emplace_back(std::format("Vendor ID: {}", properties.vendorID));
-  result.deviceInfos.emplace_back(std::format("Device type: {}", vk::to_string(properties.deviceType)));
+    std::println("{}", candidate.getProperties().deviceName.data());
 
-  const auto& limits = properties.limits;
+    std::println("\tDriver version: {}", properties.driverVersion);
+    std::println("\tVendor ID: {}", properties.vendorID);
+    std::println("\tDevice type: {}", vk::to_string(properties.deviceType));
 
-  result.deviceInfos.emplace_back("\n\tImage limits");
-  result.deviceInfos.emplace_back(std::format("Max image dimension 1D: {}", limits.maxImageDimension1D));
-  result.deviceInfos.emplace_back(std::format("Max image dimension 2D: {}", limits.maxImageDimension2D));
-  result.deviceInfos.emplace_back(std::format("Max image dimension 3D: {}", limits.maxImageDimension3D));
-  result.deviceInfos.emplace_back(std::format("Max image dimension cube: {}", limits.maxImageDimensionCube));
-  result.deviceInfos.emplace_back(std::format("Max image array layers: {}", limits.maxImageArrayLayers));
-  result.deviceInfos.emplace_back(std::format("Max texel buffer elements: {}", limits.maxTexelBufferElements));
+    std::println("\n\tImage limits");
+    std::println("\tMax image dimension 1D: {}", limits.maxImageDimension1D);
+    std::println("\tMax image dimension 2D: {}", limits.maxImageDimension2D);
+    std::println("\tMax image dimension 3D: {}", limits.maxImageDimension3D);
+    std::println("\tMax image dimension cube: {}", limits.maxImageDimensionCube);
+    std::println("\tMax image array layers: {}", limits.maxImageArrayLayers);
+    std::println("\tMax texel buffer elements: {}", limits.maxTexelBufferElements);
 
-  result.deviceInfos.emplace_back("\n\tBuffer limits");
-  result.deviceInfos.emplace_back(std::format("Max uniform buffer range: {}", limits.maxUniformBufferRange));
-  result.deviceInfos.emplace_back(std::format("Max storage buffer range: {}", limits.maxStorageBufferRange));
+    std::println("\n\tBuffer limits");
+    std::println("\tMax uniform buffer range: {}", limits.maxUniformBufferRange);
+    std::println("\tMax storage buffer range: {}", limits.maxStorageBufferRange);
 
-  result.deviceInfos.emplace_back("\n\tPush constant limits");
-  result.deviceInfos.emplace_back(std::format("Max push constants size: {}", limits.maxPushConstantsSize));
+    std::println("\n\tPush constant limits");
+    std::println("\tMax push constants size: {}", limits.maxPushConstantsSize);
 
-  result.deviceInfos.emplace_back("\n\tDescriptor set limits");
-  result.deviceInfos.emplace_back(std::format("Max bound descriptor sets: {}", limits.maxBoundDescriptorSets));
-  result.deviceInfos.emplace_back(std::format("Max per-stage descriptor samplers: {}", limits.maxPerStageDescriptorSamplers));
-  result.deviceInfos.emplace_back(std::format("Max per-stage descriptor uniform buffers: {}", limits.maxPerStageDescriptorUniformBuffers));
-  result.deviceInfos.emplace_back(std::format("Max per-stage descriptor storage buffers: {}", limits.maxPerStageDescriptorStorageBuffers));
-  result.deviceInfos.emplace_back(std::format("Max per-stage descriptor sampled images: {}", limits.maxPerStageDescriptorSampledImages));
-  result.deviceInfos.emplace_back(std::format("Max per-stage descriptor storage images: {}", limits.maxPerStageDescriptorStorageImages));
+    std::println("\n\tDescriptor set limits");
+    std::println("\tMax bound descriptor sets: {}", limits.maxBoundDescriptorSets);
+    std::println("\tMax per-stage descriptor samplers: {}", limits.maxPerStageDescriptorSamplers);
+    std::println("\tMax per-stage descriptor uniform buffers: {}", limits.maxPerStageDescriptorUniformBuffers);
+    std::println("\tMax per-stage descriptor storage buffers: {}", limits.maxPerStageDescriptorStorageBuffers);
+    std::println("\tMax per-stage descriptor sampled images: {}", limits.maxPerStageDescriptorSampledImages);
+    std::println("\tMax per-stage descriptor storage images: {}", limits.maxPerStageDescriptorStorageImages);
 
-  result.deviceInfos.emplace_back("\n\tVertex and fragment limits");
-  result.deviceInfos.emplace_back(std::format("Max vertex input attributes: {}", limits.maxVertexInputAttributes));
-  result.deviceInfos.emplace_back(std::format("Max vertex input bindings: {}", limits.maxVertexInputBindings));
-  result.deviceInfos.emplace_back(std::format("Max vertex output components: {}", limits.maxVertexOutputComponents));
-  result.deviceInfos.emplace_back(std::format("Max fragment input components: {}", limits.maxFragmentInputComponents));
-  result.deviceInfos.emplace_back(std::format("Max fragment output attachments: {}", limits.maxFragmentOutputAttachments));
-  result.deviceInfos.emplace_back(std::format("Max color attachments: {}", limits.maxColorAttachments));
+    std::println("\n\tVertex and fragment limits");
+    std::println("\tMax vertex input attributes: {}", limits.maxVertexInputAttributes);
+    std::println("\tMax vertex input bindings: {}", limits.maxVertexInputBindings);
+    std::println("\tMax vertex output components: {}", limits.maxVertexOutputComponents);
+    std::println("\tMax fragment input components: {}", limits.maxFragmentInputComponents);
+    std::println("\tMax fragment output attachments: {}", limits.maxFragmentOutputAttachments);
+    std::println("\tMax color attachments: {}", limits.maxColorAttachments);
 
-  result.deviceInfos.emplace_back("\n\tCompute limits");
-  result.deviceInfos.emplace_back(std::format("Max compute shared memory size: {}", limits.maxComputeSharedMemorySize));
-  result.deviceInfos.emplace_back(std::format("Max compute work group invocations: {}", limits.maxComputeWorkGroupInvocations));
-  result.deviceInfos.emplace_back(std::format("Max compute work group size: [{}, {}, {}]", limits.maxComputeWorkGroupSize[0], limits.maxComputeWorkGroupSize[1], limits.maxComputeWorkGroupSize[2]));
-  result.deviceInfos.emplace_back(std::format("Max compute work group count: [{}, {}, {}]", limits.maxComputeWorkGroupCount[0], limits.maxComputeWorkGroupCount[1], limits.maxComputeWorkGroupCount[2]));
-
-  result.deviceInfos.emplace_back(""); // Padding
-
-  switch (properties.deviceType) {
-  case vk::PhysicalDeviceType::eDiscreteGpu:
-    result.AddToScore(1000);
-    break;
-  case vk::PhysicalDeviceType::eIntegratedGpu:
-    result.AddToScore(500);
-    break;
-  default:
-    result.AddToScore(100);
+    std::println("\n\tCompute limits");
+    std::println("\tMax compute shared memory size: {}", limits.maxComputeSharedMemorySize);
+    std::println("\tMax compute work group invocations: {}", limits.maxComputeWorkGroupInvocations);
+    std::println("\tMax compute work group size: [{}, {}, {}]", limits.maxComputeWorkGroupSize[0], limits.maxComputeWorkGroupSize[1], limits.maxComputeWorkGroupSize[2]);
+    std::println("\tMax compute work group count: [{}, {}, {}]", limits.maxComputeWorkGroupCount[0], limits.maxComputeWorkGroupCount[1], limits.maxComputeWorkGroupCount[2]);
+    
+    std::println(""); // Padding
   }
+
+  int score = GetPhysicalDeviceScore(candidate);
 
   if (properties.apiVersion < ApiVersion) {
-    result.InvalidateScore("Device does not support Vulkan 1.4");
+    std::println("\tDevice does not support Vulkan 1.4");
+    score = 0;
   }
 
-  const bool supportsGraphicsFamily = std::ranges::any_of(
-    candidate.getQueueFamilyProperties(),
-    [](const vk::QueueFamilyProperties& familyProperties) -> bool {
-      return (familyProperties.queueFlags & vk::QueueFlagBits::eGraphics) == vk::QueueFlagBits::eGraphics;
+  if (GraphicsCapabilitiesEnabled) {
+    const bool supportsGraphicsFamily = std::ranges::any_of(
+      candidate.getQueueFamilyProperties(),
+      [](const vk::QueueFamilyProperties& familyProperties) -> bool {
+        return (familyProperties.queueFlags & vk::QueueFlagBits::eGraphics) == vk::QueueFlagBits::eGraphics;
+      }
+    );
+
+    if (!supportsGraphicsFamily) {
+      std::println("\tDevice is missing a graphics capable queue family");
+      score = 0;
     }
-  );
-
-  if (!supportsGraphicsFamily) {
-    result.InvalidateScore("Device is missing a graphics capable queue family");
   }
-
-  const std::vector supportedExtensions = candidate.enumerateDeviceExtensionProperties();
-
-  result.deviceInfos.emplace_back("Required device extension support");
 
   for (const std::string_view requiredExtension : RequiredDeviceExtensions) {
     const bool supported = std::ranges::any_of(
-      supportedExtensions,
+      candidate.enumerateDeviceExtensionProperties(),
       [requiredExtension](const vk::ExtensionProperties& extensionProperties) -> bool {
         return requiredExtension == extensionProperties.extensionName;
       }
     );
 
-    result.deviceInfos.emplace_back(std::format("{}: {}", requiredExtension, supported ? "true" : "false"));
-
     if (!supported) {
-      result.InvalidateScore(std::format("Device is missing support for extension {}",requiredExtension));
+      std::println("Device is missing support for extension {}", requiredExtension);
+      score = 0;
     }
   }
 
-  if (!IsRequiredDeviceFeaturesSupported(candidate)) {
-    result.InvalidateScore("Required device features are unsupported");
-  }
-
-  return result;
+  return score;
 }
 
 void VulkanContext::CreateDeviceAndQueue() {
   const std::vector queueFamiliesProperties = physicalDevice.getQueueFamilyProperties();
-  std::optional<std::uint32_t> graphicsCapableQueueFamily;
+  std::optional<std::uint32_t> validQueueFamily;
 
   for (std::size_t i = 0; i < queueFamiliesProperties.size(); ++i) {
     const vk::QueueFamilyProperties properties = queueFamiliesProperties[i];
     const vk::QueueFlags flags = properties.queueFlags;
-    const bool supportsGraphics = (flags & vk::QueueFlagBits::eGraphics) == vk::QueueFlagBits::eGraphics;
+    const vk::QueueFlagBits requiredQueueFlags =
+      GraphicsCapabilitiesEnabled ? vk::QueueFlagBits::eGraphics : vk::QueueFlagBits::eCompute;
 
-    if (supportsGraphics) {
-      graphicsCapableQueueFamily = i;
+    if ((flags & requiredQueueFlags) == vk::QueueFlagBits::eGraphics) {
+      validQueueFamily = i;
       break;
     }
   }
 
-  if (!graphicsCapableQueueFamily) {
-    throw std::runtime_error{ "Failed to find graphics queue family" };
+  if (!validQueueFamily) {
+    throw std::runtime_error{ "Failed to find valid queue family" };
   }
 
-  queueFamilyIndex = graphicsCapableQueueFamily.value();
+  queueFamilyIndex = validQueueFamily.value();
 
   constexpr float queuePriority{ 1.0F };
   const vk::DeviceQueueCreateInfo deviceQueueInfo{

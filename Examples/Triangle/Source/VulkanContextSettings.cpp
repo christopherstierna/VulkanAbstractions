@@ -1,5 +1,6 @@
 #include "VulkanAbstractions/VulkanContext.hpp"
-#include "vulkan/vulkan.hpp"
+
+const bool VulkanContext::GraphicsCapabilitiesEnabled = true;
 
 #ifdef NDEBUG
 const bool VulkanContext::ValidationLayersEnabled = false;
@@ -9,10 +10,11 @@ const bool VulkanContext::ValidationLayersEnabled = true;
 const bool VulkanContext::EnableInfoLogs = true;
 #endif
 
+const std::vector<const char*> VulkanContext::RequiredInstanceExtensions{};
 const std::vector<const char*> VulkanContext::RequiredValidationLayers{ "VK_LAYER_KHRONOS_validation" };
 const std::vector<const char*> VulkanContext::RequiredDeviceExtensions{ vk::KHRSwapchainExtensionName };
 
-vk::StructureChain RequiredDeviceFeatures{
+const vk::StructureChain RequiredDeviceFeatures{
   vk::PhysicalDeviceFeatures2{},
   vk::PhysicalDeviceVulkan11Features{
     .shaderDrawParameters = true,
@@ -23,11 +25,13 @@ vk::StructureChain RequiredDeviceFeatures{
   },
 };
 
-vk::PhysicalDeviceFeatures2& VulkanContext::GetRequiredDeviceFeatures() noexcept {
+const vk::PhysicalDeviceFeatures2& VulkanContext::GetRequiredDeviceFeatures() const noexcept {
   return RequiredDeviceFeatures.get<vk::PhysicalDeviceFeatures2>();
 }
 
-bool VulkanContext::IsRequiredDeviceFeaturesSupported(const vk::PhysicalDevice& physicalDevice) const noexcept {
+int VulkanContext::GetPhysicalDeviceScore(const vk::PhysicalDevice& physicalDevice) const noexcept {
+  int score = 0;
+
   const auto features = physicalDevice.getFeatures2<
     vk::PhysicalDeviceFeatures2,
     vk::PhysicalDeviceVulkan11Features,
@@ -38,16 +42,29 @@ bool VulkanContext::IsRequiredDeviceFeaturesSupported(const vk::PhysicalDevice& 
   const auto& vk13 = features.get<vk::PhysicalDeviceVulkan13Features>();
 
   if (!vk11.shaderDrawParameters) {
-    return false;
+    return 0;
   }
 
   if (!vk13.synchronization2) {
-    return false;
+    return 0;
   }
 
   if (!vk13.dynamicRendering) {
-    return false;
+    return 0;
   }
 
-  return true;
+  const vk::PhysicalDeviceProperties properties = physicalDevice.getProperties();
+
+  switch (properties.deviceType) {
+  case vk::PhysicalDeviceType::eDiscreteGpu:
+    score += 1000;
+    break;
+  case vk::PhysicalDeviceType::eIntegratedGpu:
+    score += 500;
+    break;
+  default:
+    score += 100;
+  }
+
+  return score;
 }

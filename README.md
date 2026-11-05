@@ -25,7 +25,8 @@ Your application also needs to define certain members and methods related to the
 ```cpp
 #include "VulkanAbstractions/VulkanContext.hpp"
 
-// Validation layers and info logs.
+const bool VulkanContext::GraphicsCapabilitiesEnabled = true;
+
 #ifdef NDEBUG
 const bool VulkanContext::ValidationLayersEnabled = false;
 const bool VulkanContext::EnableInfoLogs = false;
@@ -34,12 +35,12 @@ const bool VulkanContext::ValidationLayersEnabled = true;
 const bool VulkanContext::EnableInfoLogs = true;
 #endif
 
-// What validation layers and device extensions you want to use.
+const std::vector<const char*> VulkanContext::RequiredInstanceExtensions{};
 const std::vector<const char*> VulkanContext::RequiredValidationLayers{ "VK_LAYER_KHRONOS_validation" };
 const std::vector<const char*> VulkanContext::RequiredDeviceExtensions{ vk::KHRSwapchainExtensionName };
 
-// Structure chain of the required device features.
-vk::StructureChain RequiredDeviceFeatures{
+// Device features you want to use.
+const vk::StructureChain RequiredDeviceFeatures{
   vk::PhysicalDeviceFeatures2{},
   vk::PhysicalDeviceVulkan11Features{
     .shaderDrawParameters = true,
@@ -50,14 +51,15 @@ vk::StructureChain RequiredDeviceFeatures{
   },
 };
 
-// Definition of GetRequiredDeviceFeatures() which VulkanContext uses to get your required device features.
-vk::PhysicalDeviceFeatures2& VulkanContext::GetRequiredDeviceFeatures() noexcept {
+// Return your RequiredDeviceFeatures structure chain.
+const vk::PhysicalDeviceFeatures2& VulkanContext::GetRequiredDeviceFeatures() const noexcept {
   return RequiredDeviceFeatures.get<vk::PhysicalDeviceFeatures2>();
 }
 
-// Definition of IsRequiredDeviceFeaturesSupported() which VulkanContext uses to check if your required device features are supported.
-// Ensure this checks support for all your enabled device features in the RequiredDeviceFeatures structure chain.
-bool VulkanContext::IsRequiredDeviceFeaturesSupported(const vk::PhysicalDevice& physicalDevice) const noexcept {
+// This should return a score of zero if a required device feature in your RequiredDeviceFeatures structure chain is unsupported.
+int VulkanContext::GetPhysicalDeviceScore(const vk::PhysicalDevice& physicalDevice) const noexcept {
+  int score = 0;
+
   const auto features = physicalDevice.getFeatures2<
     vk::PhysicalDeviceFeatures2,
     vk::PhysicalDeviceVulkan11Features,
@@ -68,19 +70,34 @@ bool VulkanContext::IsRequiredDeviceFeaturesSupported(const vk::PhysicalDevice& 
   const auto& vk13 = features.get<vk::PhysicalDeviceVulkan13Features>();
 
   if (!vk11.shaderDrawParameters) {
-    return false;
+    return 0;
   }
 
   if (!vk13.synchronization2) {
-    return false;
+    return 0;
   }
 
   if (!vk13.dynamicRendering) {
-    return false;
+    return 0;
   }
 
-  return true;
+  const vk::PhysicalDeviceProperties properties = physicalDevice.getProperties();
+
+  // Example: prefer discrete graphics cards.
+  switch (properties.deviceType) {
+  case vk::PhysicalDeviceType::eDiscreteGpu:
+    score += 1000;
+    break;
+  case vk::PhysicalDeviceType::eIntegratedGpu:
+    score += 500;
+    break;
+  default:
+    score += 100;
+  }
+
+  return score;
 }
+
 ```
 
 Headers can then be included using:
