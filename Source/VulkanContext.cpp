@@ -292,7 +292,7 @@ void VulkanContext::CreateDeviceAndQueue() {
     const vk::QueueFlagBits requiredQueueFlags =
       GraphicsCapabilitiesEnabled ? vk::QueueFlagBits::eGraphics : vk::QueueFlagBits::eCompute;
 
-    if ((flags & requiredQueueFlags) == vk::QueueFlagBits::eGraphics) {
+    if ((flags & requiredQueueFlags) == requiredQueueFlags) {
       validQueueFamily = i;
       break;
     }

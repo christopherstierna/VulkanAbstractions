@@ -21,8 +21,8 @@ set_target_properties(
 target_link_libraries(VulkanAbstractionsExampleTriangle PRIVATE VulkanAbstractions)
 
 add_custom_command(
-    TARGET VulkanAbstractionsExampleTriangle POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "${CMAKE_CURRENT_SOURCE_DIR}/Resource"
-    "${CMAKE_CURRENT_BINARY_DIR}/Resource"
+  TARGET VulkanAbstractionsExampleTriangle POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+  "${CMAKE_CURRENT_SOURCE_DIR}/Resource"
+  "${CMAKE_CURRENT_BINARY_DIR}/Resource"
 )

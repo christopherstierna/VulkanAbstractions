@@ -12,16 +12,12 @@ FrameGraphicsResources::FrameGraphicsResources(VulkanContext& vulkanContext, Vul
 }
 
 void FrameGraphicsResources::CreateCommandBuffers() {
-  if (commandPool == nullptr) {
-    const vk::CommandPoolCreateInfo commandPoolInfo{
-      .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-      .queueFamilyIndex = vulkanContext.queueFamilyIndex
-    };
+  const vk::CommandPoolCreateInfo commandPoolInfo{
+    .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+    .queueFamilyIndex = vulkanContext.queueFamilyIndex
+  };
 
-    commandPool = vk::raii::CommandPool{ vulkanContext.device, commandPoolInfo };
-  }
-
-  commandBuffers.clear();
+  commandPool = vk::raii::CommandPool{ vulkanContext.device, commandPoolInfo };
 
   const vk::CommandBufferAllocateInfo allocateInfo{
     .commandPool = commandPool,
@@ -33,10 +29,6 @@ void FrameGraphicsResources::CreateCommandBuffers() {
 }
 
 void FrameGraphicsResources::CreateSynchronizationResources() {
-  fencesFrameInFlight.clear();
-  semaphoresImageAvailable.clear();
-  semaphoresRenderFinished.clear();
-
   for (std::size_t i = 0; i < Swapchain::MaxFramesInFlightLimit + 1; ++i) {
     semaphoresRenderFinished.emplace_back(vulkanContext.device, vk::SemaphoreCreateInfo{});
   }

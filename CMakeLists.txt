@@ -80,4 +80,5 @@ set(BUILD_VULKAN_ABSTRACTIONS_EXAMPLES ON CACHE BOOL "Build VulkanAbstractions e
 
 if (BUILD_VULKAN_ABSTRACTIONS_EXAMPLES)
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Examples/Triangle")
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Examples/PiEstimation")
 endif()
